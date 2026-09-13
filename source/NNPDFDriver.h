@@ -27,7 +27,12 @@
 
 #pragma once
 
+#include <array>
+#include <functional>
 #include <iostream>
+#include <map>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 #include <string>
 using std::string;
@@ -38,10 +43,40 @@ class NNPDFDriver {
  private:
 
   // Interpolation order
-  static const int fM = 4;
-  static const int fN = 4;
+  static constexpr int fM = 4;
+  static constexpr int fN = 4;
+  inline static constexpr std::array<int, 13> fFlavors{
+    -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6
+  };
+  static constexpr std::size_t fFlavorCount = fFlavors.size();
 
-  int fNFL;           //! Total flavour number
+  struct InterpolationCoefficients {
+    std::array<std::array<double, fN>, fM> xy;
+  };
+
+  using FlavorInterpolationCoefficients =
+    std::array<InterpolationCoefficients, fFlavorCount>;
+  using FlavorGridValues =
+    std::array<std::array<std::array<double, fN>, fM>, fFlavorCount>;
+
+  struct CacheKeyHash {
+    std::size_t operator()(const std::array<int, 5>& key) const noexcept
+    {
+      std::size_t hash = 0;
+      for (const int value : key)
+        hash ^= std::hash<int>{}(value) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+      return hash;
+    }
+  };
+
+
+  //std::unordered_map<std::array<int, 5>, FlavorInterpolationCoefficients,                 CacheKeyHash> fCache{};
+
+
+  std::map<std::array<int, 5>, FlavorInterpolationCoefficients> fCache{};
+
+
+                     int fNFL;           //! Total flavour number
   int fNX;            //! Total number of x points in the grid
   vector<int> fNQ2;   //! Total number of Q2 points in the grid (subgrids)
   int fMem;           //! Total number of Members
@@ -72,6 +107,12 @@ class NNPDFDriver {
   //! Get NFL method, returns total number of flavours
   int GetNFL() { return fNFL; }
 
+  //! Returns the flavours in LHA order
+  const std::array<int, 13>& GetFlavors() const
+  {
+    return fFlavors;
+  }
+
   //! Get AlphaS method, returns the alphas at Mz
   double GetAlphaSMz() { return fAlphas; }
 
@@ -85,10 +126,36 @@ class NNPDFDriver {
   /// Reads the PDF from file
   void readPDFSet(string const&, int const&);
   /// Performs the 2D polynomial interpolation
-  void lh_polin2(double[],double[],double[][fN],
-		 double,double,double&,double&);
+  double lh_polin2(const double[],const double[],const double[][fN],
+		 double,double);
+  /// Performs 2D polynomial interpolation using coefficient arrays
+  double lh_polin2_coefficients(const double[],const double[],const double[][fN],
+		 double,double);
+  double lh_polin2_coefficients_hold(
+    const double[], const double[], const double[][fN],
+    double, double, InterpolationCoefficients&,bool);
+  double lh_polin2_coefficients_hold_batch(
+    const double[], const double[],
+    const FlavorGridValues&, double, double,
+    FlavorInterpolationCoefficients&, std::size_t);
+  void lh_polin2_build_coefficients(
+    const double[], InterpolationCoefficients&);
+  double lh_polin2_evaluate_coefficients(
+    const InterpolationCoefficients&, double, double) const;
+  InterpolationCoefficients lh_polin2_cached_coefficients(
+    const double[], const double[], const double[][fN]);
+  FlavorInterpolationCoefficients lh_polin2_cached_coefficients_batch(
+    const double[], const double[], const FlavorGridValues&);
+  double lh_polin2_evaluate_cached_coefficients(
+    const InterpolationCoefficients&, double, double) const;
   /// Performs the 1D polynomial interpolation
-  void lh_polint(double[],double[],int,double,double&,double&);
+  template <int N>
+  double lh_polint(const double[],const double[],double);
+  template <int N>
+  std::array<double, N> lh_polint_coefficients(const double[],const double[]);
+  void lh_polint_coefficients_batch(
+    const double[], const FlavorGridValues&, int,
+    FlavorInterpolationCoefficients&);
 };
 
   
