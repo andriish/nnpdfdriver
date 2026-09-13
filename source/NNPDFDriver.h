@@ -51,11 +51,17 @@ class NNPDFDriver {
   static constexpr std::size_t fFlavorCount = fFlavors.size();
 
   struct InterpolationCoefficients {
+    std::array<std::array<double, fN>, fM> q2;
+  };
+
+  struct BivariateInterpolationCoefficients {
     std::array<std::array<double, fN>, fM> xy;
   };
 
   using FlavorInterpolationCoefficients =
     std::array<InterpolationCoefficients, fFlavorCount>;
+  using FlavorBivariateInterpolationCoefficients =
+    std::array<BivariateInterpolationCoefficients, fFlavorCount>;
   using FlavorGridValues =
     std::array<std::array<std::array<double, fN>, fM>, fFlavorCount>;
 
@@ -73,7 +79,7 @@ class NNPDFDriver {
   //std::unordered_map<std::array<int, 5>, FlavorInterpolationCoefficients,                 CacheKeyHash> fCache{};
 
 
-  std::map<std::array<int, 5>, FlavorInterpolationCoefficients> fCache{};
+  std::map<std::array<int, 5>, FlavorBivariateInterpolationCoefficients> fCache{};
 
 
                      int fNFL;           //! Total flavour number
@@ -138,16 +144,13 @@ class NNPDFDriver {
     const double[], const double[],
     const FlavorGridValues&, double, double,
     FlavorInterpolationCoefficients&, std::size_t);
-  void lh_polin2_build_coefficients(
-    const double[], InterpolationCoefficients&);
-  double lh_polin2_evaluate_coefficients(
-    const InterpolationCoefficients&, double, double) const;
-  InterpolationCoefficients lh_polin2_cached_coefficients(
+  BivariateInterpolationCoefficients lh_polin2_bivariate_coefficients(
     const double[], const double[], const double[][fN]);
-  FlavorInterpolationCoefficients lh_polin2_cached_coefficients_batch(
+  FlavorBivariateInterpolationCoefficients
+  lh_polin2_bivariate_coefficients_batch(
     const double[], const double[], const FlavorGridValues&);
-  double lh_polin2_evaluate_cached_coefficients(
-    const InterpolationCoefficients&, double, double) const;
+  double lh_polin2_bivariate_evaluate(
+    const BivariateInterpolationCoefficients&, double, double);
   /// Performs the 1D polynomial interpolation
   template <int N>
   double lh_polint(const double[],const double[],double);
