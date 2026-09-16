@@ -134,17 +134,13 @@ class NNPDFDriver {
   /// Reads the PDF from file
   void readPDFSet(string const&, int const&);
   /// Performs the 2D polynomial interpolation
-  double lh_polin2(const double[],const double[],const double[][fN],
-		 double,double);
+  double lh_polin2(const double[], const double[], const double[][fN], double, double);
   /// Performs 2D polynomial interpolation using coefficient arrays
-  double lh_polin2_coefficients(const double[],const double[],const double[][fN],
-		 double,double);
+  double lh_polin2_coefficients(const double[], const double[], const double[][fN], double, double);
   double lh_polin2_coefficients_hold(
-    const double[], const double[], const double[][fN],
-    double, double, InterpolationCoefficients&,bool);
+    const double[], const double[], const double[][fN], double, double, InterpolationCoefficients&, bool);
   double lh_polin2_coefficients_hold_batch(
-    const double[], const double[],
-    const FlavorGridValues&, double, double,
+    const double[], const double[], const FlavorGridValues&, double, double,
     FlavorInterpolationCoefficients&, std::size_t);
   BivariateInterpolationCoefficients lh_polin2_bivariate_coefficients(
     const double[], const double[], const double[][fN]);
@@ -155,9 +151,9 @@ class NNPDFDriver {
     const BivariateInterpolationCoefficients&, double, double);
   /// Performs the 1D polynomial interpolation
   template <int N>
-  double lh_polint(const double[],const double[],double);
+  double lh_polint(const double[], const double[], double);
   template <int N>
-  std::array<double, N> lh_polint_coefficients(const double[],const double[]);
+  std::array<double, N> lh_polint_coefficients(const double[], const double[]);
   void lh_polint_coefficients_batch(
     const double[], const FlavorGridValues&, int,
     FlavorInterpolationCoefficients&);

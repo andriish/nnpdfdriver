@@ -542,415 +542,323 @@ double NNPDFDriver::xfx(double const&X, double const& Q, int const& ID)
 
   const int id    = ID+6;
   int sub   = 0;
-  if (fLHAPDF6)
-    {
-	const vector<double*>::const_iterator nextSubgrid = std::upper_bound(
-	  fQ2Grid.begin(), fQ2Grid.end(), Q2,
-	  [](double value, const double* grid) { return value < grid[0]; });
-	if (nextSubgrid != fQ2Grid.begin())
-	  sub = static_cast<int>(nextSubgrid - fQ2Grid.begin()) - 1;
-    }
+  if (fLHAPDF6) {
+    const vector<double*>::const_iterator nextSubgrid = std::upper_bound(fQ2Grid.begin(), fQ2Grid.end(), Q2, [](double value, const double* grid) { return value < grid[0]; });
+    if (nextSubgrid != fQ2Grid.begin()) sub = static_cast<int>(nextSubgrid - fQ2Grid.begin()) - 1;
+  }
 
 	// check bounds
-	const double* const xGrid = fXGrid;
-	const double* const q2Grid = fQ2Grid[sub];
-	const int nq2 = fNQ2[sub];
-	const double xMin = std::max(fXMinGrid, xGrid[0]);
-	const double xMax = xGrid[fNX - 1];
-	if (x < xMin || x > xMax) [[unlikely]] {
+  const double* const xGrid = fXGrid;
+  const double* const q2Grid = fQ2Grid[sub];
+  const int nq2 = fNQ2[sub];
+  const double xMin = std::max(fXMinGrid, xGrid[0]);
+  const double xMax = xGrid[fNX - 1];
+  if (x < xMin || x > xMax) [[unlikely]] {
     cout << "Parton interpolation: x out of range -- freezed" << endl;  
-		x = std::clamp(x, xMin, xMax);
+    x = std::clamp(x, xMin, xMax);
   }
-	const double q2Min = q2Grid[0];
-	const double q2Max = q2Grid[nq2 - 1];
-	if (Q2 < q2Min || Q2 > q2Max) [[unlikely]] {
+  const double q2Min = q2Grid[0];
+  const double q2Max = q2Grid[nq2 - 1];
+  if (Q2 < q2Min || Q2 > q2Max) [[unlikely]] {
     cout << "Parton interpolation: Q2 out of range -- freezed" << endl;
-		cout << Q2 << "\t" << q2Min << "\t" << sub << endl;
-		Q2 = std::clamp(Q2, q2Min, q2Max);
+    cout << Q2 << "\t" << q2Min << "\t" << sub << endl;
+    Q2 = std::clamp(Q2, q2Min, q2Max);
   }
 
-	// Find the last grid point less than or equal to the query.
-	const int ix = static_cast<int>(std::upper_bound(fXGrid, fXGrid + fNX, x) - fXGrid) - 1;
-	const int iq2 = static_cast<int>(std::upper_bound(fQ2Grid[sub], fQ2Grid[sub] + fNQ2[sub], Q2) - fQ2Grid[sub]) - 1;
+  // Find the last grid point less than or equal to the query.
+  const int ix = static_cast<int>(std::upper_bound(fXGrid, fXGrid + fNX, x) - fXGrid) - 1;
+  const int iq2 = static_cast<int>(std::upper_bound(fQ2Grid[sub], fQ2Grid[sub] + fNQ2[sub], Q2) - fQ2Grid[sub]) - 1;
 
   // Assign grid for interpolation. M,N -> order of polyN interpolation
   double x1a[fM], x2a[fN];
 
-	const int ixStart = ix+1 < fM/2 ? 0
-		: ix+1 > fNX-fM/2 ? fNX-fM
-		: ix+1-fM/2;
-	const int iq2Start = iq2+1 < fN/2 ? 0
-		: iq2+1 > fNQ2[sub]-fN/2 ? fNQ2[sub]-fN
-		: iq2+1-fN/2;
+  const int ixStart = ix+1 < fM/2 ? 0 : ix+1 > fNX-fM/2 ? fNX-fM : ix+1-fM/2;
+  const int iq2Start = iq2+1 < fN/2 ? 0 : iq2+1 > fNQ2[sub]-fN/2 ? fNQ2[sub]-fN : iq2+1-fN/2;
 
   // define points where to evaluate interpolation
   // choose between linear or logarithmic (x,Q2) interpolation
   constexpr double xch = 1e-1;
 
-	const double x1 = x < xch ? log(x) : x;
-	const double x2 = log(Q2);
-  
+  const double x1 = x < xch ? log(x) : x;
+  const double x2 = log(Q2);
+
   if (id < 0 || id > fNFL-1)
     {
       cout << "Error: flavor out of range" << endl;
       exit(3);
     }
-	const std::array<int, 5> cacheKey = {ixStart, iq2Start, sub, fRep, -1};
-#
-	auto cached = fCache.find(cacheKey);
-	const bool isCached = (cached != fCache.end());
+  const std::array<int, 5> cacheKey = {ixStart, iq2Start, sub, fRep, -1};
+  auto cached = fCache.find(cacheKey);
+  const bool isCached = (cached != fCache.end());
 
 
-	auto*  flavorGridall = fPDFGrid[sub][fRep];
-	constexpr std::size_t flavorCount = 13;
-	const auto& flavours = GetFlavors();
-	//if (fHasPhoton) flavours.push_back(7);
-	const std::size_t selectedFlavorIndex =
-	  static_cast<std::size_t>(id);
-	FlavorGridValues yaall;
+  auto*  flavorGridall = fPDFGrid[sub][fRep];
+  constexpr std::size_t flavorCount = 13;
+  const auto& flavours = GetFlavors();
+  //if (fHasPhoton) flavours.push_back(7);
+  const std::size_t selectedFlavorIndex = static_cast<std::size_t>(id);
+  FlavorGridValues yaall;
+  const double* const logQ2Grid = fLogQ2Grid[sub];
+  if (x < xch) {
+    for (int i = 0; i < fM; i++) {
+      const int xIndex = ixStart + i;
+      x1a[i] = fLogXGrid[xIndex];
+      if (isCached) continue;
+      for (int j = 0; j < fN; j++) {
+        const int qIndex = iq2Start + j;
+        x2a[j] = logQ2Grid[qIndex];  
+        for (size_t flavorIndex = 0; flavorIndex < flavorCount; flavorIndex++) {
+          const int gridFlavor = flavours[flavorIndex] + 6;
+          yaall[flavorIndex][i][j] = flavorGridall[gridFlavor][xIndex][qIndex];
+        }
+      }
+    }
+  } else {
+     for (int i = 0; i < fM; i++) {
+       const int xIndex = ixStart + i;
+       x1a[i] = fXGrid[xIndex];
+       if (isCached) continue;
+       for (int j = 0; j < fN; j++) {
+         const int qIndex = iq2Start + j;
+         x2a[j] = logQ2Grid[qIndex];	  
+         for (size_t flavorIndex = 0; flavorIndex < flavorCount; flavorIndex++) {
+           const int gridFlavor = flavours[flavorIndex] + 6;
+           yaall[flavorIndex][i][j] = flavorGridall[gridFlavor][xIndex][qIndex];
+         }
+      }
+    }
+  }
 
-	const double* const logQ2Grid = fLogQ2Grid[sub];
-      if (x < xch)
-	{
-	  for (int i = 0; i < fM; i++)
-	    {
-	      const int xIndex = ixStart + i;
-	      x1a[i] = fLogXGrid[xIndex];
-	      if (isCached) continue;
-	      for (int j = 0; j < fN; j++)
-		{
-		  const int qIndex = iq2Start + j;
-		  x2a[j] = logQ2Grid[qIndex];  
-			for (size_t flavorIndex = 0; flavorIndex < flavorCount; flavorIndex++)
-            {
-							const int gridFlavor = flavours[flavorIndex] + 6;
-							yaall[flavorIndex][i][j] = flavorGridall[gridFlavor][xIndex][qIndex];
-            }
-		}
-	    }
-	}
-	else
-	{
-	  for (int i = 0; i < fM; i++)
-	    {
-	      const int xIndex = ixStart + i;
-	      x1a[i] = fXGrid[xIndex];
-	      if (isCached) continue;
-	      for (int j = 0; j < fN; j++)
-		{
-		  const int qIndex = iq2Start + j;
-		  x2a[j] = logQ2Grid[qIndex];	  
-			for (size_t flavorIndex = 0; flavorIndex < flavorCount; flavorIndex++)
-            {
-							const int gridFlavor = flavours[flavorIndex] + 6;
-							yaall[flavorIndex][i][j] = flavorGridall[gridFlavor][xIndex][qIndex];
-            }
-		}
-	    }
-	}
-      
-
-
-	if (cached != fCache.end())
-		{
-			res = lh_polin2_bivariate_evaluate(
-				cached->second[selectedFlavorIndex], x1, x2);
-		}
-	else
-		{
-			const FlavorBivariateInterpolationCoefficients coefficients =
-				lh_polin2_bivariate_coefficients_batch(x1a, x2a, yaall);
-			res = lh_polin2_bivariate_evaluate(
-				coefficients[selectedFlavorIndex], x1, x2);
-			fCache.emplace(cacheKey, coefficients);
-		}
-
-
+  if (cached != fCache.end()) {
+    res = lh_polin2_bivariate_evaluate(cached->second[selectedFlavorIndex], x1, x2);
+  } else {
+    const FlavorBivariateInterpolationCoefficients coefficients = lh_polin2_bivariate_coefficients_batch(x1a, x2a, yaall);
+    res = lh_polin2_bivariate_evaluate(coefficients[selectedFlavorIndex], x1, x2);
+    fCache.emplace(cacheKey, coefficients);
+  }
   return res;
 }
 
-double NNPDFDriver::lh_polin2(const double x1a[], const double x2a[],
-			    const double ya[][fN],
-			    double x1, double x2)
-{
+double NNPDFDriver::lh_polin2(const double x1a[], const double x2a[], const double ya[][fN], double x1, double x2) {
   double ymtmp[fM];
-  for (int j = 0; j < fM; j++)
-    {
-	  ymtmp[j] = lh_polint<fN>(x2a,ya[j],x2);
-    }
-	return lh_polint<fM>(x1a,ymtmp,x1);
+  for (int j = 0; j < fM; j++) ymtmp[j] = lh_polint<fN>(x2a, ya[j], x2);
+  return lh_polint<fM>(x1a, ymtmp, x1);
 }
 
 double NNPDFDriver::lh_polin2_coefficients(
-	const double x1a[], const double x2a[], const double ya[][fN],
-	double x1, double x2)
-{
-	double ymtmp[fM];
-	for (int j = 0; j < fM; j++)
-		{
-			const std::array<double, fN> coefficients = lh_polint_coefficients<fN>(x2a, ya[j]);
-			ymtmp[j] = coefficients[fN - 1];
-			for (int k = fN - 2; k >= 0; k--) ymtmp[j] = ymtmp[j] * x2 + coefficients[k];
-		}
-	const std::array<double, fM> coefficients = lh_polint_coefficients<fM>(x1a, ymtmp);
-	double y = coefficients[fM - 1];
-	for (int k = fM - 2; k >= 0; k--) y = y * x1 + coefficients[k];
-	return y;
+  const double x1a[], const double x2a[], const double ya[][fN], double x1, double x2) {
+  double ymtmp[fM];
+  for (int j = 0; j < fM; j++) {
+    const std::array<double, fN> coefficients = lh_polint_coefficients<fN>(x2a, ya[j]);
+    ymtmp[j] = coefficients[fN - 1];
+    for (int k = fN - 2; k >= 0; k--) ymtmp[j] = ymtmp[j] * x2 + coefficients[k];
+  }
+  const std::array<double, fM> coefficients = lh_polint_coefficients<fM>(x1a, ymtmp);
+  double y = coefficients[fM - 1];
+  for (int k = fM - 2; k >= 0; k--) y = y * x1 + coefficients[k];
+  return y;
 }
 
 double NNPDFDriver::lh_polin2_coefficients_hold(
-	const double x1a[], const double x2a[], const double ya[][fN],
-	double x1, double x2, InterpolationCoefficients& heldCoefficients, bool recalculate)
-{
-	double ymtmp[fM];
-	if (recalculate) {
-	for (int j = 0; j < fM; j++)
-		{
-			heldCoefficients.q2[j] = lh_polint_coefficients<fN>(x2a, ya[j]);
-		}
-	} 
-	for (int j = 0; j < fM; j++)
-		{
-			ymtmp[j] = heldCoefficients.q2[j][fN - 1];
-			for (int k = fN - 2; k >= 0; k--)
-				ymtmp[j] = ymtmp[j] * x2 + heldCoefficients.q2[j][k];
-		}
-	const std::array<double, fM> coefficients = lh_polint_coefficients<fM>(x1a, ymtmp);
-	double y = coefficients[fM - 1];
-	for (int k = fM - 2; k >= 0; k--) y = y * x1 + coefficients[k];
-	return y;
+  const double x1a[], const double x2a[], const double ya[][fN], double x1, double x2,
+  InterpolationCoefficients& heldCoefficients, bool recalculate) {
+  double ymtmp[fM];
+  if (recalculate) {
+    for (int j = 0; j < fM; j++) heldCoefficients.q2[j] = lh_polint_coefficients<fN>(x2a, ya[j]);
+  }
+  for (int j = 0; j < fM; j++) {
+    ymtmp[j] = heldCoefficients.q2[j][fN - 1];
+    for (int k = fN - 2; k >= 0; k--) ymtmp[j] = ymtmp[j] * x2 + heldCoefficients.q2[j][k];
+  }
+  const std::array<double, fM> coefficients = lh_polint_coefficients<fM>(x1a, ymtmp);
+  double y = coefficients[fM - 1];
+  for (int k = fM - 2; k >= 0; k--) y = y * x1 + coefficients[k];
+  return y;
 }
 
 double NNPDFDriver::lh_polin2_coefficients_hold_batch(
-	const double x1a[], const double x2a[],
-	const FlavorGridValues& yaall,
-	double x1, double x2, FlavorInterpolationCoefficients& heldCoefficients,
-	std::size_t selectedFlavorIndex)
-{
-	for (int j = 0; j < fM; j++)
-		lh_polint_coefficients_batch(x2a, yaall, j, heldCoefficients);
+  const double x1a[], const double x2a[], const FlavorGridValues& yaall, double x1, double x2,
+  FlavorInterpolationCoefficients& heldCoefficients, std::size_t selectedFlavorIndex) {
+  for (int j = 0; j < fM; j++) lh_polint_coefficients_batch(x2a, yaall, j, heldCoefficients);
 
-	const InterpolationCoefficients& selectedCoefficients =
-		heldCoefficients[selectedFlavorIndex];
-	double ymtmp[fM];
-	for (int j = 0; j < fM; j++)
-		{
-			ymtmp[j] = selectedCoefficients.q2[j][fN - 1];
-			for (int k = fN - 2; k >= 0; k--)
-				ymtmp[j] = ymtmp[j] * x2 + selectedCoefficients.q2[j][k];
-		}
-	const std::array<double, fM> coefficients = lh_polint_coefficients<fM>(x1a, ymtmp);
-	double y = coefficients[fM - 1];
-	for (int k = fM - 2; k >= 0; k--) y = y * x1 + coefficients[k];
-	return y;
+  const InterpolationCoefficients& selectedCoefficients = heldCoefficients[selectedFlavorIndex];
+  double ymtmp[fM];
+  for (int j = 0; j < fM; j++) {
+    ymtmp[j] = selectedCoefficients.q2[j][fN - 1];
+    for (int k = fN - 2; k >= 0; k--) ymtmp[j] = ymtmp[j] * x2 + selectedCoefficients.q2[j][k];
+  }
+  const std::array<double, fM> coefficients = lh_polint_coefficients<fM>(x1a, ymtmp);
+  double y = coefficients[fM - 1];
+  for (int k = fM - 2; k >= 0; k--) y = y * x1 + coefficients[k];
+  return y;
 }
 
 NNPDFDriver::BivariateInterpolationCoefficients
 NNPDFDriver::lh_polin2_bivariate_coefficients(
-	const double x1a[], const double x2a[], const double ya[][fN])
-{
-	std::array<std::array<double, fN>, fM> q2Coefficients;
-	for (int xIndex = 0; xIndex < fM; xIndex++)
-		q2Coefficients[xIndex] =
-			lh_polint_coefficients<fN>(x2a, ya[xIndex]);
+  const double x1a[], const double x2a[], const double ya[][fN]) {
+  std::array<std::array<double, fN>, fM> q2Coefficients;
+  for (int xIndex = 0; xIndex < fM; xIndex++) {
+    q2Coefficients[xIndex] = lh_polint_coefficients<fN>(x2a, ya[xIndex]);
+  }
 
-	BivariateInterpolationCoefficients coefficients{};
-	for (int q2Power = 0; q2Power < fN; q2Power++)
-		{
-			double values[fM];
-			for (int xIndex = 0; xIndex < fM; xIndex++)
-				values[xIndex] = q2Coefficients[xIndex][q2Power];
+  BivariateInterpolationCoefficients coefficients{};
+  for (int q2Power = 0; q2Power < fN; q2Power++) {
+    double values[fM];
+    for (int xIndex = 0; xIndex < fM; xIndex++) values[xIndex] = q2Coefficients[xIndex][q2Power];
 
-			const auto xCoefficients =
-				lh_polint_coefficients<fM>(x1a, values);
-			for (int xPower = 0; xPower < fM; xPower++)
-				coefficients.xy[xPower][q2Power] = xCoefficients[xPower];
-		}
-	return coefficients;
+    const auto xCoefficients = lh_polint_coefficients<fM>(x1a, values);
+    for (int xPower = 0; xPower < fM; xPower++) coefficients.xy[xPower][q2Power] = xCoefficients[xPower];
+  }
+  return coefficients;
 }
 
 NNPDFDriver::FlavorBivariateInterpolationCoefficients
 NNPDFDriver::lh_polin2_bivariate_coefficients_batch(
-	const double x1a[], const double x2a[], const FlavorGridValues& yaall)
-{
-	FlavorInterpolationCoefficients q2Coefficients{};
-	for (int xIndex = 0; xIndex < fM; xIndex++)
-		lh_polint_coefficients_batch(
-			x2a, yaall, xIndex, q2Coefficients);
+  const double x1a[], const double x2a[], const FlavorGridValues& yaall) {
+  FlavorInterpolationCoefficients q2Coefficients{};
+  for (int xIndex = 0; xIndex < fM; xIndex++) {
+    lh_polint_coefficients_batch(x2a, yaall, xIndex, q2Coefficients);
+  }
 
-	FlavorBivariateInterpolationCoefficients coefficients{};
-	for (std::size_t flavor = 0; flavor < fFlavorCount; flavor++)
-		for (int q2Power = 0; q2Power < fN; q2Power++)
-			{
-				double values[fM];
-				for (int xIndex = 0; xIndex < fM; xIndex++)
-					values[xIndex] =
-						q2Coefficients[flavor].q2[xIndex][q2Power];
-
-				const auto xCoefficients =
-					lh_polint_coefficients<fM>(x1a, values);
-				for (int xPower = 0; xPower < fM; xPower++)
-					coefficients[flavor].xy[xPower][q2Power] =
-						xCoefficients[xPower];
-			}
-	return coefficients;
+  FlavorBivariateInterpolationCoefficients coefficients{};
+  for (std::size_t flavor = 0; flavor < fFlavorCount; flavor++) {
+    for (int q2Power = 0; q2Power < fN; q2Power++) {
+      double values[fM];
+      for (int xIndex = 0; xIndex < fM; xIndex++) {
+        values[xIndex] = q2Coefficients[flavor].q2[xIndex][q2Power];
+      }
+      const auto xCoefficients = lh_polint_coefficients<fM>(x1a, values);
+      for (int xPower = 0; xPower < fM; xPower++) {
+        coefficients[flavor].xy[xPower][q2Power] = xCoefficients[xPower];
+      }
+    }
+  }
+  return coefficients;
 }
 
 double NNPDFDriver::lh_polin2_bivariate_evaluate(
-	const BivariateInterpolationCoefficients& coefficients,
-	double x1, double x2)
-{
-	double y = 0.0;
-	for (int q2Power = fN - 1; q2Power >= 0; q2Power--)
-		{
-			double xPolynomial = coefficients.xy[fM - 1][q2Power];
-			for (int xPower = fM - 2; xPower >= 0; xPower--)
-				xPolynomial = xPolynomial * x1
-					+ coefficients.xy[xPower][q2Power];
-			y = y * x2 + xPolynomial;
-		}
-	return y;
+  const BivariateInterpolationCoefficients& coefficients, double x1, double x2) {
+  double y = 0.0;
+  for (int q2Power = fN - 1; q2Power >= 0; q2Power--) {
+    double xPolynomial = coefficients.xy[fM - 1][q2Power];
+    for (int xPower = fM - 2; xPower >= 0; xPower--) {
+      xPolynomial = xPolynomial * x1 + coefficients.xy[xPower][q2Power];
+    }
+    y = y * x2 + xPolynomial;
+  }
+  return y;
 }
 
 
 template <int N>
-double NNPDFDriver::lh_polint(const double xa[], const double ya[], double x)
-{
-  int ns = 0;  
-	double dy;
-  double dif = abs(x-xa[0]);
+double NNPDFDriver::lh_polint(const double xa[], const double ya[], double x) {
+  int ns = 0;
+  double dy;
+  double dif = abs(x - xa[0]);
   double c[fM > fN ? fM : fN];
   double d[fM > fN ? fM : fN];
-//  #pragma GCC unroll 4
-	for (int i = 0; i < N; i++)
-    {
-      const double dift = abs(x-xa[i]);
-      if (dift < dif)
-	{
-	  ns = i;
-	  dif = dift;
-	}
-      c[i] = ya[i];
-      d[i] = ya[i];
+  for (int i = 0; i < N; i++) {
+    const double dift = abs(x - xa[i]);
+    if (dift < dif) {
+      ns = i;
+      dif = dift;
     }
-	double y = ya[ns];
+    c[i] = ya[i];
+    d[i] = ya[i];
+  }
+
+  double y = ya[ns];
   ns--;
-//  #pragma GCC unroll 4
-	for (int m = 1; m < N; m++)
-    {
-			for (int i = 0; i < N-m; i++)
-	{
-	  //const double ho = xa[i]-x;
-	  //const double hp = xa[i+m]-x;
-	  //const double w = c[i+1]-d[i];
-	  //double den = ho-hp;
-
-	  if (xa[i] == xa[i+m])[[unlikely]]
-	    {
-	      cout << "failure in polint" << endl;
-	      exit(4);	       
-	    }
-
-		// den = w/den;
-	  d[i] = (xa[i+m]-x)*(c[i+1]-d[i])/(xa[i]-xa[i+m]);
-	  c[i] = d[i];
-	}
-	  if (2*(ns+1) < N-m)
-	dy = c[ns+1];
-      else {
-	dy = d[ns];
-	ns--;
+  for (int m = 1; m < N; m++) {
+    for (int i = 0; i < N - m; i++) {
+      if (xa[i] == xa[i + m]) [[unlikely]] {
+        cout << "failure in polint" << endl;
+        exit(4);
       }
-      y+=dy;
+      d[i] = (xa[i + m] - x) * (c[i + 1] - d[i]) / (xa[i] - xa[i + m]);
+      c[i] = d[i];
     }
-	return y;
+    if (2 * (ns + 1) < N - m) {
+      dy = c[ns + 1];
+    } else {
+      dy = d[ns];
+      ns--;
+    }
+    y += dy;
+  }
+  return y;
 }
 
 template <int N>
-std::array<double, N> NNPDFDriver::lh_polint_coefficients(
-	const double xa[], const double ya[])
-{
-	std::array<double, N> dividedDifferences;
-	for (int i = 0; i < N; i++)
-		dividedDifferences[i] = ya[i];
+std::array<double, N> NNPDFDriver::lh_polint_coefficients(const double xa[], const double ya[]) {
+  std::array<double, N> dividedDifferences;
+  for (int i = 0; i < N; i++) dividedDifferences[i] = ya[i];
 
-	for (int order = 1; order < N; order++)
-		for (int i = N - 1; i >= order; i--)
-			{
-				const double denominator = xa[i] - xa[i - order];
-				if (denominator == 0.0) [[unlikely]]
-					{
-						cout << "failure in polint" << endl;
-						exit(4);
-					}
-				dividedDifferences[i] =
-					(dividedDifferences[i] - dividedDifferences[i - 1]) / denominator;
-			}
+  for (int order = 1; order < N; order++) {
+    for (int i = N - 1; i >= order; i--) {
+      const double denominator = xa[i] - xa[i - order];
+      if (denominator == 0.0) [[unlikely]] {
+        cout << "failure in polint" << endl;
+        exit(4);
+      }
+      dividedDifferences[i] = (dividedDifferences[i] - dividedDifferences[i - 1]) / denominator;
+    }
+  }
 
-	std::array<double, N> coefficients{};
-	coefficients[0] = dividedDifferences[N - 1];
-	int degree = 0;
-	for (int order = N - 2; order >= 0; order--)
-		{
-			std::array<double, N> expanded{};
-			for (int power = 0; power <= degree; power++)
-				{
-					expanded[power] += -xa[order] * coefficients[power];
-					expanded[power + 1] += coefficients[power];
-				}
-			expanded[0] += dividedDifferences[order];
-			coefficients = expanded;
-			degree++;
-		}
-	return coefficients;
+  std::array<double, N> coefficients{};
+  coefficients[0] = dividedDifferences[N - 1];
+  int degree = 0;
+  for (int order = N - 2; order >= 0; order--) {
+    std::array<double, N> expanded{};
+    for (int power = 0; power <= degree; power++) {
+      expanded[power] += -xa[order] * coefficients[power];
+      expanded[power + 1] += coefficients[power];
+    }
+    expanded[0] += dividedDifferences[order];
+    coefficients = expanded;
+    degree++;
+  }
+  return coefficients;
 }
 
 void NNPDFDriver::lh_polint_coefficients_batch(
-	const double xa[],
-	const FlavorGridValues& yall,
-	int row,
-	FlavorInterpolationCoefficients& heldCoefficients)
-{
-	std::array<std::array<double, fN>, fN> inverseDenominators{};
-	for (int order = 1; order < fN; order++)
-		for (int i = order; i < fN; i++)
-			{
-				const double denominator = xa[i] - xa[i - order];
-				if (denominator == 0.0) [[unlikely]]
-					{
-						cout << "failure in polint" << endl;
-						exit(4);
-					}
-				inverseDenominators[order][i] = 1.0 / denominator;
-			}
+  const double xa[], const FlavorGridValues& yall, int row, FlavorInterpolationCoefficients& heldCoefficients) {
+  std::array<std::array<double, fN>, fN> inverseDenominators{};
+  for (int order = 1; order < fN; order++) {
+    for (int i = order; i < fN; i++) {
+      const double denominator = xa[i] - xa[i - order];
+      if (denominator == 0.0) [[unlikely]] {
+        cout << "failure in polint" << endl;
+        exit(4);
+      }
+      inverseDenominators[order][i] = 1.0 / denominator;
+    }
+  }
 
-	for (std::size_t flavor = 0; flavor < fFlavorCount; flavor++)
-		{
-			auto& dividedDifferences = heldCoefficients[flavor].q2[row];
-			dividedDifferences = yall[flavor][row];
-			for (int order = 1; order < fN; order++)
-				for (int i = fN - 1; i >= order; i--)
-					dividedDifferences[i] =
-						(dividedDifferences[i] - dividedDifferences[i - 1])
-						* inverseDenominators[order][i];
+  for (std::size_t flavor = 0; flavor < fFlavorCount; flavor++) {
+    auto& dividedDifferences = heldCoefficients[flavor].q2[row];
+    dividedDifferences = yall[flavor][row];
+    for (int order = 1; order < fN; order++) {
+      for (int i = fN - 1; i >= order; i--) {
+        dividedDifferences[i] = (dividedDifferences[i] - dividedDifferences[i - 1]) * inverseDenominators[order][i];
+      }
+    }
 
-			std::array<double, fN> coefficients{};
-			coefficients[0] = dividedDifferences[fN - 1];
-			int degree = 0;
-			for (int order = fN - 2; order >= 0; order--)
-				{
-					std::array<double, fN> expanded{};
-					for (int power = 0; power <= degree; power++)
-					{
-						expanded[power] += -xa[order] * coefficients[power];
-						expanded[power + 1] += coefficients[power];
-					}
-					expanded[0] += dividedDifferences[order];
-					coefficients = expanded;
-					degree++;
-				}
-			dividedDifferences = coefficients;
-		}
+    std::array<double, fN> coefficients{};
+    coefficients[0] = dividedDifferences[fN - 1];
+    int degree = 0;
+    for (int order = fN - 2; order >= 0; order--) {
+      std::array<double, fN> expanded{};
+      for (int power = 0; power <= degree; power++) {
+        expanded[power] += -xa[order] * coefficients[power];
+        expanded[power + 1] += coefficients[power];
+      }
+      expanded[0] += dividedDifferences[order];
+      coefficients = expanded;
+      degree++;
+    }
+    dividedDifferences = coefficients;
+  }
 }
 
 
