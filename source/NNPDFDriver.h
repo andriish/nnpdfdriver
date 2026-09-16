@@ -28,9 +28,7 @@
 #pragma once
 
 #include <array>
-#include <functional>
 #include <iostream>
-#include <map>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -45,9 +43,7 @@ class NNPDFDriver {
   // Interpolation order
   static constexpr int fM = 4;
   static constexpr int fN = 4;
-  inline static constexpr std::array<int, 13> fFlavors{
-    -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6
-  };
+  inline static constexpr std::array<int, 13> fFlavors{-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6 };
   static constexpr std::size_t fFlavorCount = fFlavors.size();
 
   struct InterpolationCoefficients {
@@ -58,33 +54,14 @@ class NNPDFDriver {
     std::array<std::array<double, fN>, fM> xy;
   };
 
-  using FlavorInterpolationCoefficients =
-    std::array<InterpolationCoefficients, fFlavorCount>;
-  using FlavorBivariateInterpolationCoefficients =
-    std::array<BivariateInterpolationCoefficients, fFlavorCount>;
-  using FlavorGridValues =
-    std::array<std::array<std::array<double, fN>, fM>, fFlavorCount>;
+  using FlavorInterpolationCoefficients = std::array<InterpolationCoefficients, fFlavorCount>;
+  using FlavorBivariateInterpolationCoefficients = std::array<BivariateInterpolationCoefficients, fFlavorCount>;
+  using FlavorGridValues = std::array<std::array<std::array<double, fN>, fM>, fFlavorCount>;
 
-  struct CacheKeyHash {
-    std::size_t operator()(const std::array<int, 5>& key) const noexcept
-    {
-      std::size_t hash = 0;
-      for (const int value : key)
-        hash ^= std::hash<int>{}(value) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
-      return hash;
-    }
-  };
+  std::unordered_map<std::size_t, FlavorBivariateInterpolationCoefficients> fCache{};
+  std::size_t fCacheQ2Stride = 0;
 
-
-
-  //std::map<std::array<int, 5>, FlavorBivariateInterpolationCoefficients> fCache{};
-
-  std::unordered_map<std::array<int, 5>, FlavorBivariateInterpolationCoefficients,CacheKeyHash> fCache{};
-  
-
-
-
-                     int fNFL;           //! Total flavour number
+  int fNFL;           //! Total flavour number
   int fNX;            //! Total number of x points in the grid
   vector<int> fNQ2;   //! Total number of Q2 points in the grid (subgrids)
   int fMem;           //! Total number of Members
@@ -116,7 +93,7 @@ class NNPDFDriver {
   int GetNFL() { return fNFL; }
 
   //! Returns the flavours in LHA order
-  const std::array<int, 13>& GetFlavors() const
+  const std::array<int, fFlavorCount>& GetFlavors() const
   {
     return fFlavors;
   }
@@ -133,30 +110,10 @@ class NNPDFDriver {
  private:
   /// Reads the PDF from file
   void readPDFSet(string const&, int const&);
-  /// Performs the 2D polynomial interpolation
-  double lh_polin2(const double[], const double[], const double[][fN], double, double);
-  /// Performs 2D polynomial interpolation using coefficient arrays
-  double lh_polin2_coefficients(const double[], const double[], const double[][fN], double, double);
-  double lh_polin2_coefficients_hold(
-    const double[], const double[], const double[][fN], double, double, InterpolationCoefficients&, bool);
-  double lh_polin2_coefficients_hold_batch(
-    const double[], const double[], const FlavorGridValues&, double, double,
-    FlavorInterpolationCoefficients&, std::size_t);
-  BivariateInterpolationCoefficients lh_polin2_bivariate_coefficients(
-    const double[], const double[], const double[][fN]);
-  FlavorBivariateInterpolationCoefficients
-  lh_polin2_bivariate_coefficients_batch(
-    const double[], const double[], const FlavorGridValues&);
-  double lh_polin2_bivariate_evaluate(
-    const BivariateInterpolationCoefficients&, double, double);
-  /// Performs the 1D polynomial interpolation
-  template <int N>
-  double lh_polint(const double[], const double[], double);
-  template <int N>
-  std::array<double, N> lh_polint_coefficients(const double[], const double[]);
-  void lh_polint_coefficients_batch(
-    const double[], const FlavorGridValues&, int,
-    FlavorInterpolationCoefficients&);
+  FlavorBivariateInterpolationCoefficients lh_polin2_bivariate_coefficients_batch( const double[], const double[], const FlavorGridValues&);
+  double lh_polin2_bivariate_evaluate(const BivariateInterpolationCoefficients&, double, double);
+  template <int N> std::array<double, N> lh_polint_coefficients(const double[], const double[]);
+  void lh_polint_coefficients_batch( const double[], const FlavorGridValues&, int, FlavorInterpolationCoefficients&);
 };
 
   
