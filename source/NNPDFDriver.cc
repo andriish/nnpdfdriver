@@ -674,7 +674,6 @@ double NNPDFDriver::lh_polin2(const double x1a[], const double x2a[],
 			    double x1, double x2)
 {
   double ymtmp[fM];
-//#pragma GCC unroll 4
   for (int j = 0; j < fM; j++)
     {
 	  ymtmp[j] = lh_polint<fN>(x2a,ya[j],x2);
