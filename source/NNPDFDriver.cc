@@ -32,6 +32,8 @@
 #include <algorithm>
 #include <iterator>
 #include <cmath>
+#include <limits>
+#include <stdexcept>
 
 #define NNDriverVersion "1.0.8"
 
@@ -71,7 +73,7 @@ NNPDFDriver::NNPDFDriver(string const& gridfilename, int const& rep):
 
   // Check the grid version
   if (gridfilename.find(".LHgrid") == string::npos) fLHAPDF6 = true;
-
+fCache.reserve(10000);
   // Read PDFs from file
   readPDFSet(gridfilename,rep);
 }
@@ -81,6 +83,8 @@ NNPDFDriver::NNPDFDriver(string const& gridfilename, int const& rep):
  */
 NNPDFDriver::~NNPDFDriver()
 {  
+	std::cout << "Clearing cache with size: " << fCache.size() << std::endl;
+	fCache.clear();
   for (size_t s = 0; s < fPDFGrid.size(); s++)
     for (int imem = 0; imem <= fMem; imem++)
       {
@@ -137,14 +141,21 @@ void NNPDFDriver::initPDF(int irep)
  */
 void NNPDFDriver::readPDFSet(string const& grid, int const& rep)
 {
+	const auto checkedGridSize = [](size_t size, const char* description) {
+		if (size > static_cast<size_t>(numeric_limits<int>::max()))
+			throw overflow_error(string(description) + " exceeds supported range");
+		return static_cast<int>(size);
+	};
+
   if (fLHAPDF6)
     {
       fstream f;
       stringstream file("");
-      int firstindex = (int) grid.find_last_of("/") + 1;
-      int lastindex  = (int) grid.length() - firstindex;
+			const string::size_type separator = grid.find_last_of('/');
+			const string::size_type firstindex =
+				separator == string::npos ? 0 : separator + 1;
       
-      string name = grid.substr(firstindex, lastindex);      
+			string name = grid.substr(firstindex);
       file << grid << "/" << name << ".info";
       f.open(file.str().c_str(), ios::in);
       
@@ -166,7 +177,7 @@ void NNPDFDriver::readPDFSet(string const& grid, int const& rep)
 	  if (tmp.find("NumMembers:") != string::npos)
 	    {
 	      split(splitstring,tmp);
-	      fMem = atof(splitstring[1].c_str())-1;
+	      fMem = stoi(splitstring[1]) - 1;
 	    }
 	  
 	  if (tmp.find("Flavors: [") != string::npos)
@@ -195,17 +206,17 @@ void NNPDFDriver::readPDFSet(string const& grid, int const& rep)
 
       if (fSingleMem)
 	{
-	  stringstream file("");
+	  stringstream member_file("");
 	  if (rep < 10)
-	    file << grid << "/" << name << "_000" << rep << ".dat";
+	    member_file << grid << "/" << name << "_000" << rep << ".dat";
 	  else if (rep < 100)
-	    file << grid << "/" << name << "_00" << rep << ".dat";
+	    member_file << grid << "/" << name << "_00" << rep << ".dat";
 	  else if (rep < 1000)
-	    file << grid << "/" << name << "_0" << rep << ".dat";
+	    member_file << grid << "/" << name << "_0" << rep << ".dat";
 	  else
-	    file << grid << "/" << name << "_" << rep << ".dat";
+	    member_file << grid << "/" << name << "_" << rep << ".dat";
 
-	  f.open(file.str().c_str(), ios::in);
+	  f.open(member_file.str().c_str(), ios::in);
 	  
 	  getline(f, tmp);
 	  getline(f, tmp);
@@ -220,7 +231,7 @@ void NNPDFDriver::readPDFSet(string const& grid, int const& rep)
 		  getline(f, tmp);
 		  split(splitstring,tmp);
 	      
-		  fNX = splitstring.size();
+		  fNX = checkedGridSize(splitstring.size(), "X grid size");
 		  fXGrid = new double[fNX];
 		  fLogXGrid = new double[fNX];
 		  for (int ix = 0; ix < fNX; ix++)
@@ -233,7 +244,7 @@ void NNPDFDriver::readPDFSet(string const& grid, int const& rep)
 	      getline(f, tmp);
 	      split(splitstring, tmp);
 	      
-	      fNQ2.push_back(splitstring.size());	    
+	      fNQ2.push_back(checkedGridSize(splitstring.size(), "Q2 grid size"));	    
 	      fQ2Grid.push_back(new double[fNQ2[sub]]);
 	      fLogQ2Grid.push_back(new double[fNQ2[sub]]);
 
@@ -248,7 +259,7 @@ void NNPDFDriver::readPDFSet(string const& grid, int const& rep)
 	      vector<int> fls;
 	      
 	      split(splitstring,tmp);
-	      for (int i = 0; i < splitstring.size(); i++)
+	      for (size_t i = 0; i < splitstring.size(); i++)
 		{	      
 		  if (atoi(splitstring[i].c_str()) == 21)
 		    fls.push_back(6);
@@ -279,7 +290,7 @@ void NNPDFDriver::readPDFSet(string const& grid, int const& rep)
 	      for (int imem = 0; imem <= fMem; imem++)
 		for (int ix = 0; ix < fNX; ix++)
 		  for (int iq = 0; iq < fNQ2[sub]; iq++)
-		    for (int fl = 0; fl < fls.size(); fl++) 
+		    for (size_t fl = 0; fl < fls.size(); fl++) 
 		      f >> fPDFGrid[sub][imem][fls[fl]][ix][iq];	
 
 	      getline(f, tmp);
@@ -300,17 +311,17 @@ void NNPDFDriver::readPDFSet(string const& grid, int const& rep)
 	{
 	  for (int imem = 0; imem <= fMem; imem++)
 	    {
-	      stringstream file("");
+	      stringstream memberFile("");
 	      if (imem < 10)
-		file << grid << "/" << name << "_000" << imem << ".dat";
+		memberFile << grid << "/" << name << "_000" << imem << ".dat";
 	      else if (imem < 100)
-		file << grid << "/" << name << "_00" << imem << ".dat";
+		memberFile << grid << "/" << name << "_00" << imem << ".dat";
 	      else if (imem < 1000)
-		file << grid << "/" << name << "_0" << imem << ".dat";
+		memberFile << grid << "/" << name << "_0" << imem << ".dat";
 	      else
-		file << grid << "/" << name << "_" << imem << ".dat";
+		memberFile << grid << "/" << name << "_" << imem << ".dat";
 
-	      f.open(file.str().c_str(), ios::in);
+	      f.open(memberFile.str().c_str(), ios::in);
 	  
 	      getline(f, tmp);
 	      getline(f, tmp);
@@ -325,7 +336,7 @@ void NNPDFDriver::readPDFSet(string const& grid, int const& rep)
 		      getline(f, tmp);
 		      split(splitstring,tmp);
 		      
-		      fNX = splitstring.size();
+		      fNX = checkedGridSize(splitstring.size(), "X grid size");
 		      fXGrid = new double[fNX];
 		      fLogXGrid = new double[fNX];
 		      for (int ix = 0; ix < fNX; ix++)
@@ -341,7 +352,7 @@ void NNPDFDriver::readPDFSet(string const& grid, int const& rep)
 		      getline(f, tmp);
 		      split(splitstring, tmp);
 		      
-		      fNQ2.push_back(splitstring.size());	    
+		      fNQ2.push_back(checkedGridSize(splitstring.size(), "Q2 grid size"));	    
 		      fQ2Grid.push_back(new double[fNQ2[sub]]);
 		      fLogQ2Grid.push_back(new double[fNQ2[sub]]);
 		  
@@ -360,7 +371,7 @@ void NNPDFDriver::readPDFSet(string const& grid, int const& rep)
 		  vector<int> fls;
 		  
 		  split(splitstring,tmp);
-		  for (int i = 0; i < splitstring.size(); i++)
+		  for (size_t i = 0; i < splitstring.size(); i++)
 		    {	      
 		      if (atoi(splitstring[i].c_str()) == 21)
 			fls.push_back(6);
@@ -384,7 +395,7 @@ void NNPDFDriver::readPDFSet(string const& grid, int const& rep)
 		  // read PDF grid points	      
 		  for (int ix = 0; ix < fNX; ix++)
 		    for (int iq = 0; iq < fNQ2[sub]; iq++)
-		      for (int fl = 0; fl < fls.size(); fl++) 
+		      for (size_t fl = 0; fl < fls.size(); fl++) 
 			f >> fPDFGrid[sub][imem][fls[fl]][ix][iq];	
 		  
 		  getline(f, tmp);
@@ -562,35 +573,8 @@ double NNPDFDriver::xfx(double const&X, double const& Q, int const& ID)
 	const int ix = static_cast<int>(std::upper_bound(fXGrid, fXGrid + fNX, x) - fXGrid) - 1;
 	const int iq2 = static_cast<int>(std::upper_bound(fQ2Grid[sub], fQ2Grid[sub] + fNQ2[sub], Q2) - fQ2Grid[sub]) - 1;
 
-	/* Previous hand-written binary searches:
-	int minx = 0;
-	int maxx = fNX;
-	while (maxx-minx > 1)
-		{
-			int midx = (minx+maxx)/2;
-			if (x < fXGrid[midx])
-				maxx = midx;
-			else
-				minx = midx;
-		}
-	int ix = minx;
-
-	int minq = 0;
-	int maxq = fNQ2[sub];
-	while (maxq-minq > 1)
-		{
-			int midq = (minq+maxq)/2;
-			if (Q2 < fQ2Grid[sub][midq])
-				maxq = midq;
-			else
-				minq = midq;
-		}
-	int iq2 = minq;
-	*/
-#define MULTIFLAVOUR
   // Assign grid for interpolation. M,N -> order of polyN interpolation
   double x1a[fM], x2a[fN];
-  double ya[fM][fN];
 
 	const int ixStart = ix+1 < fM/2 ? 0
 		: ix+1 > fNX-fM/2 ? fNX-fM
@@ -611,19 +595,12 @@ double NNPDFDriver::xfx(double const&X, double const& Q, int const& ID)
       cout << "Error: flavor out of range" << endl;
       exit(3);
     }
-#ifdef MULTIFLAVOUR
 	const std::array<int, 5> cacheKey = {ixStart, iq2Start, sub, fRep, -1};
-#else
-	const std::array<int, 5> cacheKey = {ixStart, iq2Start, sub, fRep, id};
-      // Choose betwen linear or logarithmic (x,Q2) interpolation
-	double** const flavorGrid = fPDFGrid[sub][fRep][id];
-
-#endif
+#
 	auto cached = fCache.find(cacheKey);
 	const bool isCached = (cached != fCache.end());
 
 
-	#ifdef MULTIFLAVOUR
 	auto*  flavorGridall = fPDFGrid[sub][fRep];
 	constexpr std::size_t flavorCount = 13;
 	const auto& flavours = GetFlavors();
@@ -631,7 +608,6 @@ double NNPDFDriver::xfx(double const&X, double const& Q, int const& ID)
 	const std::size_t selectedFlavorIndex =
 	  static_cast<std::size_t>(id);
 	FlavorGridValues yaall;
-	#endif
 
 	const double* const logQ2Grid = fLogQ2Grid[sub];
       if (x < xch)
@@ -644,17 +620,12 @@ double NNPDFDriver::xfx(double const&X, double const& Q, int const& ID)
 	      for (int j = 0; j < fN; j++)
 		{
 		  const int qIndex = iq2Start + j;
-		  x2a[j] = logQ2Grid[qIndex];
-#ifdef MULTIFLAVOUR		  
+		  x2a[j] = logQ2Grid[qIndex];  
 			for (size_t flavorIndex = 0; flavorIndex < flavorCount; flavorIndex++)
             {
 							const int gridFlavor = flavours[flavorIndex] + 6;
 							yaall[flavorIndex][i][j] = flavorGridall[gridFlavor][xIndex][qIndex];
             }
-#else
-
-           ya[i][j] = flavorGrid[xIndex][qIndex];
-#endif
 		}
 	    }
 	}
@@ -668,34 +639,18 @@ double NNPDFDriver::xfx(double const&X, double const& Q, int const& ID)
 	      for (int j = 0; j < fN; j++)
 		{
 		  const int qIndex = iq2Start + j;
-		  x2a[j] = logQ2Grid[qIndex];
-#ifdef MULTIFLAVOUR		  
+		  x2a[j] = logQ2Grid[qIndex];	  
 			for (size_t flavorIndex = 0; flavorIndex < flavorCount; flavorIndex++)
             {
 							const int gridFlavor = flavours[flavorIndex] + 6;
 							yaall[flavorIndex][i][j] = flavorGridall[gridFlavor][xIndex][qIndex];
             }
-#else
-
-           ya[i][j] = flavorGrid[xIndex][qIndex];
-#endif
 		}
 	    }
 	}
       
-      // 2D polynomial interpolation
-	//double y = 0;
-	/*
-	{
-	double y = lh_polin2_coefficients(x1a, x2a, ya, x1, x2);
-	res = y;
-	}
-	*/
 
 
-
-	
-#ifdef MULTIFLAVOUR	
 	if (cached != fCache.end())
 		{
 			res = lh_polin2_bivariate_evaluate(
@@ -709,30 +664,6 @@ double NNPDFDriver::xfx(double const&X, double const& Q, int const& ID)
 				coefficients[selectedFlavorIndex], x1, x2);
 			fCache.emplace(cacheKey, coefficients);
 		}
-#else
-
-
-
-	
-	
-
-
-	if (isCached)
-		{
-			res = lh_polin2_bivariate_evaluate(
-				cached->second[id], x1, x2);
-		}
-	else
-		{
-			const BivariateInterpolationCoefficients coefficients =
-				lh_polin2_bivariate_coefficients(x1a, x2a, ya);
-			res = lh_polin2_bivariate_evaluate(coefficients, x1, x2);
-			FlavorBivariateInterpolationCoefficients cachedCoefficients{};
-			cachedCoefficients[id] = coefficients;
-			fCache.emplace(cacheKey, cachedCoefficients);
-		}
-
-#endif
 
 
   return res;

@@ -10,14 +10,22 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(${CMAKE_CXX_COMPILER_ID}_CXX_FLAGS_TO_CHECK "")
-set(MSVC_CXX_FLAGS_TO_CHECK "/bigobj")
-set(NVHPC_CXX_FLAGS_TO_CHECK "-O3")
-set(Intel_CXX_FLAGS_TO_CHECK "-O3")
-set(IntelLLVM_CXX_FLAGS_TO_CHECK "-O3")
-set(GNU_CXX_FLAGS_TO_CHECK "-O3")
-set(Clang_CXX_FLAGS_TO_CHECK "-O3")
-set(AppleClang_CXX_FLAGS_TO_CHECK "-O3")
-set(XL_CXX_FLAGS_TO_CHECK "-O3")
+set(MSVC_CXX_FLAGS_TO_CHECK
+  "/bigobj;/O2;/W4;/permissive-;/w14242;/w14254;/w14263;/w14265;/w14287;/w14296;/w14311;/w14545;/w14546;/w14547;/w14549;/w14555;/w14619;/w14640;/w14826;/w14905;/w14906;/w14928"
+)
+set(NVHPC_CXX_FLAGS_TO_CHECK "-O3;-Wall;-Wextra;-Wpedantic")
+set(Intel_CXX_FLAGS_TO_CHECK "-O3;-Wall;-Wextra;-Wpedantic;-Wconversion;-Wshadow")
+set(IntelLLVM_CXX_FLAGS_TO_CHECK "-O3;-Wall;-Wextra;-Wpedantic;-Wconversion;-Wshadow")
+set(GNU_CXX_FLAGS_TO_CHECK
+  "-O3;-Wall;-Wextra;-Wpedantic;-Wconversion;-Wshadow;-Wcast-align=strict;-Wdouble-promotion;-Wformat=2;-Wnull-dereference;-Wduplicated-cond;-Wduplicated-branches;-Wlogical-op;-Wuseless-cast;-Wold-style-cast;-Woverloaded-virtual;-Wnon-virtual-dtor;-Wpessimizing-move;-Wredundant-move"
+)
+set(Clang_CXX_FLAGS_TO_CHECK
+  "-O3;-Wall;-Wextra;-Wpedantic;-Wconversion;-Wshadow;-Wcast-align;-Wdouble-promotion;-Wformat=2;-Wnull-dereference;-Wold-style-cast;-Woverloaded-virtual;-Wnon-virtual-dtor;-Wpessimizing-move;-Wredundant-move"
+)
+set(AppleClang_CXX_FLAGS_TO_CHECK
+  "-O3;-Wall;-Wextra;-Wpedantic;-Wconversion;-Wsign-conversion;-Wshadow;-Wcast-align;-Wdouble-promotion;-Wformat=2;-Wnull-dereference;-Wold-style-cast;-Woverloaded-virtual;-Wnon-virtual-dtor;-Wpessimizing-move;-Wredundant-move"
+)
+set(XL_CXX_FLAGS_TO_CHECK "-O3;-Wall;-Wextra;-Wpedantic")
 
 foreach(flag ${${CMAKE_CXX_COMPILER_ID}_CXX_FLAGS_TO_CHECK})
   string(MAKE_C_IDENTIFIER "${flag}" flag_identifier)

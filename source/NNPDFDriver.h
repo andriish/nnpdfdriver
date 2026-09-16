@@ -76,10 +76,12 @@ class NNPDFDriver {
   };
 
 
-  //std::unordered_map<std::array<int, 5>, FlavorInterpolationCoefficients,                 CacheKeyHash> fCache{};
 
+  //std::map<std::array<int, 5>, FlavorBivariateInterpolationCoefficients> fCache{};
 
-  std::map<std::array<int, 5>, FlavorBivariateInterpolationCoefficients> fCache{};
+  std::unordered_map<std::array<int, 5>, FlavorBivariateInterpolationCoefficients,CacheKeyHash> fCache{};
+  
+
 
 
                      int fNFL;           //! Total flavour number
